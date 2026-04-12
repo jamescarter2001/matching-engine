@@ -3,8 +3,6 @@ package com.carter.manager;
 import com.carter.order.OrderBook;
 import com.carter.order.OrderPool;
 import com.carter.publisher.OrderBookListener;
-import com.carter.publisher.OrderEventPublisher;
-import com.carter.publisher.TradePublisher;
 import org.agrona.collections.Long2LongHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 
@@ -19,6 +17,14 @@ public class MatchingEngine {
     public MatchingEngine(OrderBookListener listener) {
         books.put(1, new OrderBook(orderPool, listener, 1000, 3000, 1));
         books.put(2, new OrderBook(orderPool, listener, 0, 1000, 1));
+    }
+
+    public int getBestBid(long instrumentId) {
+        return books.get(instrumentId).getBestBid();
+    }
+
+    public int getBestAsk(long instrumentId) {
+        return books.get(instrumentId).getBestAsk();
     }
 
     public long addOrder(long symbolId, int price, int quantity, byte side) {

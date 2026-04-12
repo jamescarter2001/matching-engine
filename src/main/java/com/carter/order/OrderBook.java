@@ -9,14 +9,12 @@ import static com.carter.order.OrderSide.isBuy;
 public class OrderBook {
 
     private static final int NULL = -1;
+    private static final byte BUY_SIDE = 0;
+    private static final byte SELL_SIDE = 1;
 
     private final OrderPool orderPool;
-
-    private final OrderBookListener listener;
-
-    private static final int BUY_SIDE = 0;
-    private static final int SELL_SIDE = 1;
     private final OrderBookLevel[][] levels;
+    private final OrderBookListener listener;
 
     private final int minPrice;
     private final int maxPrice;
@@ -50,8 +48,22 @@ public class OrderBook {
 
     public void clear() {
         idToSlotMap.clear();
-        bestBid = -1;
-        bestAsk = -1;
+        bestBid = NULL;
+        bestAsk = NULL;
+    }
+
+    public int getBestBid() {
+        if (bestBid == NULL) {
+            return Integer.MIN_VALUE;
+        }
+        return levelToPrice(bestBid);
+    }
+
+    public int getBestAsk() {
+        if (bestAsk == NULL) {
+            return Integer.MAX_VALUE;
+        }
+        return levelToPrice(bestAsk);
     }
 
     public int getOrder(long orderId) {
@@ -64,6 +76,8 @@ public class OrderBook {
             return;
         }
 
+        listener.onOrderUpdate(orderId, 0, quantity, OrderStatus.NEW);
+
         int remainder = match(orderId, price, quantity, side);
         int executedQty = quantity - remainder;
 
@@ -74,8 +88,6 @@ public class OrderBook {
 
         if (remainder < quantity) {
             listener.onOrderUpdate(orderId, executedQty, remainder, OrderStatus.PARTIALLY_FILLED);
-        } else {
-            listener.onOrderUpdate(orderId, executedQty, remainder, OrderStatus.NEW);
         }
 
         int slot = orderPool.acquire();
@@ -135,7 +147,7 @@ public class OrderBook {
         removeOrder(slot);
     }
 
-    public void removeOrder(int slot) {
+    private void removeOrder(int slot) {
         int prev = orderPool.getPrevSlot(slot);
         int next = orderPool.getNextSlot(slot);
 
@@ -239,7 +251,7 @@ public class OrderBook {
 
     private int computeBestAsk(int fromIndex) {
         for (int i = fromIndex; i < levelCount; i++) {
-            if (!getLevelBuy(i).isEmpty()) {
+            if (!getLevelSell(i).isEmpty()) {
                 return i;
             }
         }
@@ -254,12 +266,16 @@ public class OrderBook {
         return getLevel(level, SELL_SIDE);
     }
 
-    private OrderBookLevel getLevel(int level, int side) {
+    private OrderBookLevel getLevel(int level, byte side) {
         return levels[level][side];
     }
 
     private int priceToLevel(int price) {
         return (price - minPrice) / tickSize;
+    }
+
+    private int levelToPrice(int level) {
+        return (level + minPrice) * tickSize;
     }
 
 }

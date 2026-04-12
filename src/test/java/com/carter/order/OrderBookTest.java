@@ -45,6 +45,39 @@ class OrderBookTest {
     }
 
     @Nested
+    class BestPrices {
+
+        @Test
+        void bestBid() {
+            assertThat(underTest.getBestBid()).isEqualTo(Integer.MIN_VALUE);
+
+            underTest.addOrder(orderId1, 15, 10, OrderSide.BUY);
+            assertThat(underTest.getBestBid()).isEqualTo(15);
+
+            underTest.addOrder(orderId2, 10, 50, OrderSide.BUY);
+            assertThat(underTest.getBestBid()).isEqualTo(15);
+
+            underTest.addOrder(orderId3, 10, 10, OrderSide.SELL);
+            assertThat(underTest.getBestBid()).isEqualTo(10);
+        }
+
+        @Test
+        void bestAsk() {
+            assertThat(underTest.getBestAsk()).isEqualTo(Integer.MAX_VALUE);
+
+            underTest.addOrder(orderId1, 15, 10, OrderSide.SELL);
+            assertThat(underTest.getBestAsk()).isEqualTo(15);
+
+            underTest.addOrder(orderId2, 10, 10, OrderSide.SELL);
+            assertThat(underTest.getBestAsk()).isEqualTo(10);
+
+            underTest.addOrder(orderId3, 20, 10, OrderSide.BUY);
+            assertThat(underTest.getBestAsk()).isEqualTo(15);
+        }
+
+    }
+
+    @Nested
     class AddOrder {
 
         @Test
@@ -159,8 +192,10 @@ class OrderBookTest {
             underTest.addOrder(orderId3, 10, 10, OrderSide.SELL);
             assertThat(orderEvents).containsExactly(
                     new OrderEvent(orderId1, 0, 30, OrderStatus.NEW),
+                    new OrderEvent(orderId2, 0, 20, OrderStatus.NEW),
                     new OrderEvent(orderId1, 20, 10, OrderStatus.PARTIALLY_FILLED),
                     new OrderEvent(orderId2, 20, 0, OrderStatus.FULLY_FILLED),
+                    new OrderEvent(orderId3, 0, 10, OrderStatus.NEW),
                     new OrderEvent(orderId1, 30, 0, OrderStatus.FULLY_FILLED),
                     new OrderEvent(orderId3, 10, 0, OrderStatus.FULLY_FILLED)
             );
