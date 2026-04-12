@@ -5,18 +5,31 @@ public class OrderPool {
     public static final int MAX_ORDERS = 1 << 10;
     private static final int NULL = -1;
 
-    private final int[] freeList = new int[MAX_ORDERS];
+    private final int[] freeList;
     private int nextFree = 0;
 
-    private final long[] orderId = new long[MAX_ORDERS];
-    private final byte[] side = new byte[MAX_ORDERS];
-    private final int[] price = new int[MAX_ORDERS];
-    private final int[] qty = new int[MAX_ORDERS];
-    private final int[] remainingQty = new int[MAX_ORDERS];
-    private final int[] prevSlot = new int[MAX_ORDERS];
-    private final int[] nextSlot = new int[MAX_ORDERS];
+    private final long[] orderId;
+    private final byte[] side;
+    private final int[] price;
+    private final int[] qty;
+    private final int[] remainingQty;
+    private final int[] prevSlot;
+    private final int[] nextSlot;
 
     public OrderPool() {
+        this(1024);
+    }
+
+    public OrderPool(int poolSize) {
+        freeList = new int[poolSize];
+        orderId = new long[poolSize];
+        side = new byte[poolSize];
+        price = new int[poolSize];
+        qty = new int[poolSize];
+        remainingQty = new int[poolSize];
+        prevSlot = new int[MAX_ORDERS];
+        nextSlot = new int[MAX_ORDERS];
+
         init();
     }
 

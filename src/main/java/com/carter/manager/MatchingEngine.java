@@ -10,13 +10,12 @@ public class MatchingEngine {
 
     private final Long2ObjectHashMap<OrderBook> books = new Long2ObjectHashMap<>();
     private final Long2LongHashMap orderIdToSymbolId = new Long2LongHashMap(-1);
-    private final OrderPool orderPool = new OrderPool();
 
     private long nextOrderId = 0;
 
     public MatchingEngine(OrderBookListener listener) {
-        books.put(1, new OrderBook(orderPool, listener, 1000, 3000, 1));
-        books.put(2, new OrderBook(orderPool, listener, 0, 1000, 1));
+        books.put(1, new OrderBook(new OrderPool(), listener, 1000, 3000, 1));
+        books.put(2, new OrderBook(new OrderPool(), listener, 0, 1000, 1));
     }
 
     public int getBestBid(long instrumentId) {
@@ -27,11 +26,11 @@ public class MatchingEngine {
         return books.get(instrumentId).getBestAsk();
     }
 
-    public long addOrder(long symbolId, int price, int quantity, byte side) {
+    public long addOrder(long instrumentId, int price, int quantity, byte side) {
         long orderId = nextOrderId++;
-        OrderBook book = books.get(symbolId);
+        OrderBook book = books.get(instrumentId);
         book.addOrder(orderId, quantity, price, side);
-        orderIdToSymbolId.put(orderId, symbolId);
+        orderIdToSymbolId.put(orderId, instrumentId);
         return orderId;
     }
 
