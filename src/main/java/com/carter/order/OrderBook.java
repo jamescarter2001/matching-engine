@@ -37,10 +37,9 @@ public class OrderBook {
         this.minPrice = minPrice;
         this.maxPrice = maxPrice;
         this.tickSize = tickSize;
-        int ladderSize = ((maxPrice - minPrice) / tickSize) + 1;
-        this.levelCount = ladderSize;
-        levels = new OrderBookLevel[ladderSize][2];
-        for (int i = 0; i < ladderSize; i++) {
+        this.levelCount = ((maxPrice - minPrice) / tickSize) + 1;
+        this.levels = new OrderBookLevel[levelCount][2];
+        for (int i = 0; i < levelCount; i++) {
             levels[i][BUY_SIDE] = new OrderBookLevel();
             levels[i][SELL_SIDE] = new OrderBookLevel();
         }
