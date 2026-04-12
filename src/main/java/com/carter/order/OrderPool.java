@@ -103,7 +103,7 @@ public class OrderPool {
         nextSlot[slot] = value;
     }
 
-    void clear() {
+    public void clear() {
         init();
     }
 
