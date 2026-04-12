@@ -38,6 +38,7 @@ class OrderBookTest {
 
     @AfterEach
     void afterEach() {
+        underTest.clear();
         orderPool.clear();
         tradeEvents.clear();
         orderEvents.clear();

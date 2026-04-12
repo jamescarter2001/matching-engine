@@ -21,6 +21,7 @@ public class OrderBook {
     private final int minPrice;
     private final int maxPrice;
     private final int tickSize;
+    private final int levelCount;
 
     private final Long2LongHashMap idToSlotMap = new Long2LongHashMap(
             MAX_ORDERS,
@@ -29,8 +30,8 @@ public class OrderBook {
             true
     );
 
-    private int bestBidField = Integer.MIN_VALUE;
-    private int bestAskField = Integer.MAX_VALUE;
+    private int bestBid = NULL;
+    private int bestAsk = NULL;
 
     public OrderBook(OrderPool orderPool, OrderBookListener listener, int minPrice, int maxPrice, int tickSize) {
         this.orderPool = orderPool;
@@ -39,6 +40,7 @@ public class OrderBook {
         this.maxPrice = maxPrice;
         this.tickSize = tickSize;
         int ladderSize = ((maxPrice - minPrice) / tickSize) + 1;
+        this.levelCount = ladderSize;
         levels = new OrderBookLevel[ladderSize][2];
         for (int i = 0; i < ladderSize; i++) {
             levels[i][BUY_SIDE] = new OrderBookLevel();
@@ -48,8 +50,8 @@ public class OrderBook {
 
     public void clear() {
         idToSlotMap.clear();
-        bestBidField = Integer.MIN_VALUE;
-        bestAskField = Integer.MAX_VALUE;
+        bestBid = -1;
+        bestAsk = -1;
     }
 
     public int getOrder(long orderId) {
@@ -83,24 +85,25 @@ public class OrderBook {
         orderPool.setPrice(slot, price);
         orderPool.setSide(slot, side);
 
-        OrderBookLevel level = isBuy(side) ? getLevelBuy(price) : getLevelSell(price);
+        int level = priceToLevel(price);
+        OrderBookLevel levelQueue = isBuy(side) ? getLevelBuy(level) : getLevelSell(level);
 
-        if (level.getHead() == NULL) {
-            level.setHead(slot);
+        if (levelQueue.getHead() == NULL) {
+            levelQueue.setHead(slot);
         }
 
-        orderPool.setPrevSlot(slot, level.getTail());
+        orderPool.setPrevSlot(slot, levelQueue.getTail());
 
-        if (level.getTail() != NULL) {
-            orderPool.setNextSlot(level.getTail(), slot);
+        if (levelQueue.getTail() != NULL) {
+            orderPool.setNextSlot(levelQueue.getTail(), slot);
         }
 
-        level.setTail(slot);
+        levelQueue.setTail(slot);
 
         if (isBuy(side)) {
-            bestBidField = Math.max(price, bestBidField);
+            bestBid = bestBid != NULL ? Math.max(level, bestBid) : level;
         } else {
-            bestAskField = Math.min(price, bestAskField);
+            bestAsk = bestAsk != NULL ? Math.min(level, bestAsk) : level;
         }
 
         idToSlotMap.put(orderId, slot);
@@ -140,13 +143,19 @@ public class OrderBook {
         if (next != NULL) orderPool.setPrevSlot(next, prev);
 
         byte side = orderPool.getSide(slot);
-        int price = orderPool.getPrice(slot);
-        OrderBookLevel level = isBuy(side) ? getLevelBuy(price) : getLevelSell(price);
+        int level = priceToLevel(orderPool.getPrice(slot));
+        OrderBookLevel levelQueue = isBuy(side) ? getLevelBuy(level) : getLevelSell(level);
 
-        if (slot == level.getHead()) {
-            level.setHead(next);
-        } else if (slot == level.getTail()) {
-            level.setTail(prev);
+        if (slot == levelQueue.getHead()) levelQueue.setHead(next);
+
+        if (slot == levelQueue.getTail()) levelQueue.setTail(prev);
+
+        if (levelQueue.isEmpty()) {
+            if (isBuy(side)) {
+                bestBid = computeBestBid(level-1);
+            } else {
+                bestAsk = computeBestAsk(level+1);
+            }
         }
 
         orderPool.release(slot);
@@ -157,30 +166,30 @@ public class OrderBook {
     }
 
     private int matchBuyToSell(long orderId, int price, int quantity) {
-        int bestAsk = getBestAsk();
-        if (bestAsk > price) {
+        int level = priceToLevel(price);
+        if (bestAsk == -1 || bestAsk > level) {
             return quantity;
         }
 
         int remainder = quantity;
-        for (int i = bestAsk; i <= price && remainder > 0; i += tickSize) {
-            OrderBookLevel level = getLevelSell(i);
-            remainder = walkAndMatch(orderId, level, remainder);
+        for (int i = bestAsk; i <= level && remainder > 0; i++) {
+            OrderBookLevel levelQueue = getLevelSell(i);
+            remainder = walkAndMatch(orderId, levelQueue, remainder);
         }
 
         return remainder;
     }
 
     private int matchSellToBuy(long orderId, int price, int quantity) {
-        int bestBid = getBestBid();
-        if (bestBid < price) {
+        int level = priceToLevel(price);
+        if (bestBid == -1 || bestBid < level) {
             return quantity;
         }
 
         int remainder = quantity;
-        for (int i = bestBid; i >= price && remainder > 0; i -= tickSize) {
-            OrderBookLevel level = getLevelBuy(i);
-            remainder = walkAndMatch(orderId, level, remainder);
+        for (int i = bestBid; i >= level && remainder > 0; i--) {
+            OrderBookLevel levelQueue = getLevelBuy(i);
+            remainder = walkAndMatch(orderId, levelQueue, remainder);
         }
 
         return remainder;
@@ -219,61 +228,38 @@ public class OrderBook {
         return remainder;
     }
 
-    private int getBestBid() {
-        if (bestBidField == Integer.MIN_VALUE) return Integer.MIN_VALUE;
-        int bestLevel = priceToLevel(bestBidField);
-        if (levels[bestLevel][BUY_SIDE].getHead() == NULL) {
-            bestBidField = nextBestBid(bestLevel - 1);
-        }
-        return bestBidField;
-    }
-
-    private int getBestAsk() {
-        if (bestAskField == Integer.MAX_VALUE) return Integer.MAX_VALUE;
-        int bestLevel = priceToLevel(bestAskField);
-        if (levels[bestLevel][SELL_SIDE].getHead() == NULL) {
-            bestAskField = nextBestAsk(bestLevel + 1);
-        }
-        return bestAskField;
-    }
-
-    private int nextBestBid(int fromIndex) {
+    private int computeBestBid(int fromIndex) {
         for (int i = fromIndex; i >= 0; i--) {
-            if (!levels[i][BUY_SIDE].isEmpty()) {
-                return levelToPrice(i);
+            if (!getLevelBuy(i).isEmpty()) {
+                return i;
             }
         }
-        return Integer.MIN_VALUE;
+        return -1;
     }
 
-    private int nextBestAsk(int fromIndex) {
-        for (int i = fromIndex; i < levels.length; i++) {
-            if (!levels[i][SELL_SIDE].isEmpty()) {
-                return levelToPrice(i);
+    private int computeBestAsk(int fromIndex) {
+        for (int i = fromIndex; i < levelCount; i++) {
+            if (!getLevelBuy(i).isEmpty()) {
+                return i;
             }
         }
-        return Integer.MAX_VALUE;
+        return -1;
     }
 
-    private OrderBookLevel getLevelBuy(int price) {
-        return getLevel(price, BUY_SIDE);
+    private OrderBookLevel getLevelBuy(int level) {
+        return getLevel(level, BUY_SIDE);
     }
 
-    private OrderBookLevel getLevelSell(int price) {
-        return getLevel(price, SELL_SIDE);
+    private OrderBookLevel getLevelSell(int level) {
+        return getLevel(level, SELL_SIDE);
     }
 
-    private OrderBookLevel getLevel(int price, int side) {
-        int level = priceToLevel(price);
+    private OrderBookLevel getLevel(int level, int side) {
         return levels[level][side];
     }
 
     private int priceToLevel(int price) {
         return (price - minPrice) / tickSize;
-    }
-
-    private int levelToPrice(int level) {
-        return minPrice + level * tickSize;
     }
 
 }
