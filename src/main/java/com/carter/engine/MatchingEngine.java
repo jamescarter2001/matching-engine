@@ -74,9 +74,8 @@ public class MatchingEngine {
     public long addOrder(long instrumentId, int price, int quantity, byte side) {
         long orderId = nextOrderId++;
         OrderBook book = books.get(instrumentId);
-        if (book.addOrder(orderId, price, quantity, side)) {
-            instrumentIdByOrderId.put(orderId, instrumentId);
-        }
+        boolean rested = book.addOrder(orderId, price, quantity, side);
+        if (rested) instrumentIdByOrderId.put(orderId, instrumentId);
         return orderId;
     }
 
