@@ -7,7 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @RequiredArgsConstructor
-public class OrderBookLevel {
+public final class OrderBookLevel {
 
     private final byte side;
 

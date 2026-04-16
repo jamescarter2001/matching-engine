@@ -49,6 +49,13 @@ public class OrderBook {
         idToSlotMap.clear();
         bestBid = NULL;
         bestAsk = NULL;
+
+        for (int i = 0; i < levelCount; i++) {
+            levels[i][BUY_SIDE].setHead(-1);
+            levels[i][BUY_SIDE].setTail(-1);
+            levels[i][SELL_SIDE].setHead(-1);
+            levels[i][SELL_SIDE].setTail(-1);
+        }
     }
 
     public int getBestBid() {
@@ -72,6 +79,10 @@ public class OrderBook {
     public boolean addOrder(long orderId, int price, int quantity, byte side) {
         if (price < minPrice || price > maxPrice) {
             listener.onOrderUpdate(orderId, side, 0, quantity, OrderStatus.REJECTED);
+            return false;
+        }
+
+        if (idToSlotMap.get(orderId) != NULL) {
             return false;
         }
 
@@ -279,7 +290,7 @@ public class OrderBook {
     }
 
     private int levelToPrice(int level) {
-        return (level + minPrice) * tickSize;
+        return minPrice + (level * tickSize);
     }
 
 }
