@@ -1,8 +1,15 @@
 package com.carter.engine;
 
+import com.carter.event.OrderEvent;
+import com.carter.event.TradeEvent;
+import com.carter.event.handler.OrderEventHandler;
+import com.carter.event.handler.TradeEventHandler;
+import com.carter.event.processor.OrderEventProcessor;
+import com.carter.event.processor.TradeEventProcessor;
 import com.carter.order.OrderBook;
 import com.carter.order.OrderPool;
 import com.carter.publisher.OrderBookListener;
+import com.lmax.disruptor.EventHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.agrona.collections.Long2LongHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
@@ -18,7 +25,40 @@ public class MatchingEngine {
 
     private long nextOrderId = 0;
 
-    public MatchingEngine(OrderBookListener listener) {
+    public MatchingEngine() {
+        TradeEventHandler tradeEventHandler = new TradeEventHandler();
+        OrderEventHandler orderEventHandler = new OrderEventHandler();
+        this(tradeEventHandler, orderEventHandler);
+    }
+
+    public MatchingEngine(EventHandler<TradeEvent> tradeHandler, EventHandler<OrderEvent> orderHandler) {
+        TradeEventProcessor tradeEventProcessor = new TradeEventProcessor(tradeHandler);
+        OrderEventProcessor orderEventProcessor = new OrderEventProcessor(orderHandler);
+
+        tradeEventProcessor.start();
+        orderEventProcessor.start();
+
+        OrderBookListener listener = new OrderBookListener() {
+            @Override
+            public void onOrderUpdate(long orderId, byte side, int executedQty, int remainingQty, byte status) {
+                orderEventProcessor.publish(orderId, side, executedQty, remainingQty, status);
+            }
+
+            @Override
+            public void onOrderRemoved(long orderId) {
+                instrumentIdByOrderId.remove(orderId);
+            }
+
+            @Override
+            public void onTrade(long aggressorOrderId, long restingOrderId, int price, int quantity) {
+                tradeEventProcessor.publish(aggressorOrderId, restingOrderId, price, quantity);
+            }
+        };
+
+        init(listener);
+    }
+
+    public void init(OrderBookListener listener) {
         books.put(1, new OrderBook(orderPool, listener, 1000, 3000, 1));
         books.put(2, new OrderBook(orderPool, listener, 0, 1000, 1));
     }
@@ -34,8 +74,9 @@ public class MatchingEngine {
     public long addOrder(long instrumentId, int price, int quantity, byte side) {
         long orderId = nextOrderId++;
         OrderBook book = books.get(instrumentId);
-        book.addOrder(orderId, quantity, price, side);
-        instrumentIdByOrderId.put(orderId, instrumentId);
+        if (book.addOrder(orderId, price, quantity, side)) {
+            instrumentIdByOrderId.put(orderId, instrumentId);
+        }
         return orderId;
     }
 

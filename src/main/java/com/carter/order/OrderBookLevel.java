@@ -9,6 +9,8 @@ import lombok.Setter;
 @RequiredArgsConstructor
 public class OrderBookLevel {
 
+    private final byte side;
+
     private int quantity;
 
     private int head = -1;

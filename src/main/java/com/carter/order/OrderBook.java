@@ -40,8 +40,8 @@ public class OrderBook {
         this.levelCount = ((maxPrice - minPrice) / tickSize) + 1;
         this.levels = new OrderBookLevel[levelCount][2];
         for (int i = 0; i < levelCount; i++) {
-            levels[i][BUY_SIDE] = new OrderBookLevel();
-            levels[i][SELL_SIDE] = new OrderBookLevel();
+            levels[i][BUY_SIDE] = new OrderBookLevel(BUY_SIDE);
+            levels[i][SELL_SIDE] = new OrderBookLevel(SELL_SIDE);
         }
     }
 
@@ -69,24 +69,24 @@ public class OrderBook {
         return (int) idToSlotMap.get(orderId);
     }
 
-    public void addOrder(long orderId, int price, int quantity, byte side) {
+    public boolean addOrder(long orderId, int price, int quantity, byte side) {
         if (price < minPrice || price > maxPrice) {
-            listener.onOrderUpdate(orderId, 0, quantity, OrderStatus.REJECTED);
-            return;
+            listener.onOrderUpdate(orderId, side, 0, quantity, OrderStatus.REJECTED);
+            return false;
         }
 
-        listener.onOrderUpdate(orderId, 0, quantity, OrderStatus.NEW);
+        listener.onOrderUpdate(orderId, side, 0, quantity, OrderStatus.NEW);
 
         int remainder = match(orderId, price, quantity, side);
         int executedQty = quantity - remainder;
 
         if (remainder == 0) {
-            listener.onOrderUpdate(orderId, executedQty, remainder, OrderStatus.FULLY_FILLED);
-            return;
+            listener.onOrderUpdate(orderId, side, executedQty, remainder, OrderStatus.FULLY_FILLED);
+            return false;
         }
 
         if (remainder < quantity) {
-            listener.onOrderUpdate(orderId, executedQty, remainder, OrderStatus.PARTIALLY_FILLED);
+            listener.onOrderUpdate(orderId, side, executedQty, remainder, OrderStatus.PARTIALLY_FILLED);
         }
 
         int slot = orderPool.acquire();
@@ -118,6 +118,7 @@ public class OrderBook {
         }
 
         idToSlotMap.put(orderId, slot);
+        return true;
     }
 
     public void cancelOrder(long orderId) {
@@ -131,17 +132,20 @@ public class OrderBook {
             return;
         }
 
+        byte side = orderPool.getSide(slot);
         int quantity = orderPool.getQty(slot);
         int remainingQuantity = orderPool.getRemainingQty(slot);
         int executedQty = quantity - remainingQuantity;
 
         listener.onOrderUpdate(
                 orderId,
+                side,
                 executedQty,
                 remainingQuantity,
                 OrderRemoveReason.isFilled(reason) ?
                         OrderStatus.FULLY_FILLED : OrderStatus.CANCELLED
         );
+        listener.onOrderRemoved(orderId);
 
         removeOrder(slot);
     }
@@ -229,6 +233,7 @@ public class OrderBook {
             } else {
                 listener.onOrderUpdate(
                         restingOrderId,
+                        level.getSide(),
                         orderPool.getQty(currentResting) - newRemainingQty,
                         newRemainingQty,
                         OrderStatus.PARTIALLY_FILLED

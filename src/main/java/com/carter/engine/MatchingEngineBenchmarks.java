@@ -1,7 +1,6 @@
 package com.carter.engine;
 
 import com.carter.order.OrderSide;
-import com.carter.publisher.OrderBookListener;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -22,19 +21,14 @@ public class MatchingEngineBenchmarks {
     @State(Scope.Benchmark)
     public static class BenchmarkState {
 
-        private final OrderBookListener listener = new OrderBookListener() {
-            @Override
-            public void onOrderUpdate(long orderId, int executedQty, int remainingQty, byte status) {
-                // no-op
-            }
-
-            @Override
-            public void onTrade(long aggressorOrderId, long restingOrderId, int price, int quantity) {
-                // no-op
-            }
-        };
-
-        private final MatchingEngine matchingEngine = new MatchingEngine(listener);
+        private final MatchingEngine matchingEngine = new MatchingEngine(
+                (_, _, _) -> {
+                    // no-op
+                },
+                (_, _, _) -> {
+                    // no-op
+                }
+        );
 
         @Param({"1000", "2000", "3000"})
         private int price;

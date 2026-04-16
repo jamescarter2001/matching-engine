@@ -16,21 +16,34 @@
         <agrona.version>2.3.2</agrona.version>
         <assertj.version>4.0.0-M1</assertj.version>
         <disruptor.version>4.0.0</disruptor.version>
+        <gflog.version>3.0.7</gflog.version>
         <guava.version>33.5.0-jre</guava.version>
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <jmh.version>1.37</jmh.version>
         <junit-jupiter.version>6.0.1</junit-jupiter.version>
-        <logback.version>1.5.32</logback.version>
         <lombok.version>1.18.44</lombok.version>
         <sbe.version>1.37.1</sbe.version>
     </properties>
 
     <dependencies>
         <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>${logback.version}</version>
-            <scope>compile</scope>
+            <groupId>com.epam.deltix</groupId>
+            <artifactId>gflog-core</artifactId>
+            <version>${gflog.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.epam.deltix</groupId>
+            <artifactId>gflog-api</artifactId>
+            <version>${gflog.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.epam.deltix</groupId>
+            <artifactId>gflog-slf4j</artifactId>
+            <version>${gflog.version}</version>
         </dependency>
 
         <dependency>
