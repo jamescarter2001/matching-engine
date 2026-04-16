@@ -1,6 +1,7 @@
 package com.carter.order;
 
 import com.carter.publisher.OrderBookListener;
+import org.agrona.collections.LongArrayList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,11 +21,17 @@ class OrderBookTest {
 
     private final List<TradeEvent> tradeEvents = new ArrayList<>();
     private final List<OrderEvent> orderEvents = new ArrayList<>();
+    private final LongArrayList restingFilledEvents = new LongArrayList();
 
     private final OrderBookListener listener = new OrderBookListener() {
         @Override
-        public void onOrderUpdate(long orderId, int executedQty, int remainingQty, byte status) {
-            orderEvents.add(new OrderEvent(orderId, executedQty, remainingQty, status));
+        public void onOrderUpdate(long orderId, byte side, int executedQty, int remainingQty, byte status) {
+            orderEvents.add(new OrderEvent(orderId, side, executedQty, remainingQty, status));
+        }
+
+        @Override
+        public void onRestingOrderFilled(long orderId) {
+            restingFilledEvents.add(orderId);
         }
 
         @Override
@@ -42,6 +49,7 @@ class OrderBookTest {
         orderPool.clear();
         tradeEvents.clear();
         orderEvents.clear();
+        restingFilledEvents.clear();
     }
 
     @Nested
@@ -191,23 +199,24 @@ class OrderBookTest {
             underTest.addOrder(orderId2, 10, 20, OrderSide.SELL);
             underTest.addOrder(orderId3, 10, 10, OrderSide.SELL);
             assertThat(orderEvents).containsExactly(
-                    new OrderEvent(orderId1, 0, 30, OrderStatus.NEW),
-                    new OrderEvent(orderId2, 0, 20, OrderStatus.NEW),
-                    new OrderEvent(orderId1, 20, 10, OrderStatus.PARTIALLY_FILLED),
-                    new OrderEvent(orderId2, 20, 0, OrderStatus.FULLY_FILLED),
-                    new OrderEvent(orderId3, 0, 10, OrderStatus.NEW),
-                    new OrderEvent(orderId1, 30, 0, OrderStatus.FULLY_FILLED),
-                    new OrderEvent(orderId3, 10, 0, OrderStatus.FULLY_FILLED)
+                    new OrderEvent(orderId1, OrderSide.BUY, 0, 30, OrderStatus.NEW),
+                    new OrderEvent(orderId2, OrderSide.SELL, 0, 20, OrderStatus.NEW),
+                    new OrderEvent(orderId1, OrderSide.BUY, 20, 10, OrderStatus.PARTIALLY_FILLED),
+                    new OrderEvent(orderId2, OrderSide.SELL, 20, 0, OrderStatus.FULLY_FILLED),
+                    new OrderEvent(orderId3, OrderSide.SELL, 0, 10, OrderStatus.NEW),
+                    new OrderEvent(orderId1, OrderSide.BUY, 30, 0, OrderStatus.FULLY_FILLED),
+                    new OrderEvent(orderId3, OrderSide.SELL, 10, 0, OrderStatus.FULLY_FILLED)
             );
             assertThat(tradeEvents).containsExactly(
                     new TradeEvent(orderId2, orderId1, 10, 20),
                     new TradeEvent(orderId3, orderId1, 10, 10)
             );
+            assertThat(restingFilledEvents).containsOnly(orderId1);
         }
 
     }
 
     private record TradeEvent(long aggressorOrderId, long restingOrderId, int price, int quantity) {}
-    private record OrderEvent(long orderId, int executedQty, int remainingQty, byte status) {}
+    private record OrderEvent(long orderId, byte side, int executedQty, int remainingQty, byte status) {}
 
 }

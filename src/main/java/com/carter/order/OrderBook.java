@@ -40,8 +40,8 @@ public class OrderBook {
         this.levelCount = ((maxPrice - minPrice) / tickSize) + 1;
         this.levels = new OrderBookLevel[levelCount][2];
         for (int i = 0; i < levelCount; i++) {
-            levels[i][BUY_SIDE] = new OrderBookLevel(BUY_SIDE);
-            levels[i][SELL_SIDE] = new OrderBookLevel(SELL_SIDE);
+            levels[i][BUY_SIDE] = new OrderBookLevel(OrderSide.BUY);
+            levels[i][SELL_SIDE] = new OrderBookLevel(OrderSide.SELL);
         }
     }
 
@@ -156,7 +156,7 @@ public class OrderBook {
                 OrderRemoveReason.isFilled(reason) ?
                         OrderStatus.FULLY_FILLED : OrderStatus.CANCELLED
         );
-        listener.onOrderRemoved(orderId);
+        listener.onRestingOrderFilled(orderId);
 
         removeOrder(slot);
     }

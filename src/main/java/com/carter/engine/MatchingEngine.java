@@ -45,7 +45,7 @@ public class MatchingEngine {
             }
 
             @Override
-            public void onOrderRemoved(long orderId) {
+            public void onRestingOrderFilled(long orderId) {
                 instrumentIdByOrderId.remove(orderId);
             }
 
