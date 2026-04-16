@@ -18,7 +18,7 @@ A high-performance, low-latency order matching engine written in Java.
 The matching engine is built using modern Java technologies optimised for low latency:
 
 - **Agrona**: High-performance data structures and utilities
-- **LMAX Disruptor**: High-throughput inter-thread messaging library for event processing
+- **LMAX Disruptor**: High-throughput inter-thread messaging library for event processing. Each instance is written to by a single thread, which mitigates the need for more expensive CAS operations by the internal sequencer
 
 ### Core Components
 
