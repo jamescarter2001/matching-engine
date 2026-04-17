@@ -1,6 +1,6 @@
 package com.carter.order;
 
-import com.carter.publisher.OrderBookListener;
+import com.carter.listener.MatchingEngineListener;
 import org.agrona.collections.LongArrayList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
@@ -21,17 +21,12 @@ class OrderBookTest {
 
     private final List<TradeEvent> tradeEvents = new ArrayList<>();
     private final List<OrderEvent> orderEvents = new ArrayList<>();
-    private final LongArrayList restingFilledEvents = new LongArrayList();
+    private final LongArrayList restingRemovedEvents = new LongArrayList();
 
-    private final OrderBookListener listener = new OrderBookListener() {
+    private final MatchingEngineListener listener = new MatchingEngineListener() {
         @Override
-        public void onOrderUpdate(long orderId, byte side, int executedQty, int remainingQty, byte status) {
+        public void onOrderUpdate(long orderId, OrderSide side, int executedQty, int remainingQty, OrderStatus status) {
             orderEvents.add(new OrderEvent(orderId, side, executedQty, remainingQty, status));
-        }
-
-        @Override
-        public void onRestingOrderFilled(long orderId) {
-            restingFilledEvents.add(orderId);
         }
 
         @Override
@@ -41,7 +36,7 @@ class OrderBookTest {
     };
 
     private final OrderPool orderPool = new OrderPool();
-    final OrderBook underTest = new OrderBook(orderPool, listener, 10, 30, 1);
+    final OrderBook underTest = new OrderBook(orderPool, listener, restingRemovedEvents::add, 10, 30, 1);
 
     @AfterEach
     void afterEach() {
@@ -49,7 +44,7 @@ class OrderBookTest {
         orderPool.clear();
         tradeEvents.clear();
         orderEvents.clear();
-        restingFilledEvents.clear();
+        restingRemovedEvents.clear();
     }
 
     @Nested
@@ -202,21 +197,21 @@ class OrderBookTest {
                     new OrderEvent(orderId1, OrderSide.BUY, 0, 30, OrderStatus.NEW),
                     new OrderEvent(orderId2, OrderSide.SELL, 0, 20, OrderStatus.NEW),
                     new OrderEvent(orderId1, OrderSide.BUY, 20, 10, OrderStatus.PARTIALLY_FILLED),
-                    new OrderEvent(orderId2, OrderSide.SELL, 20, 0, OrderStatus.FULLY_FILLED),
+                    new OrderEvent(orderId2, OrderSide.SELL, 20, 0, OrderStatus.FILLED),
                     new OrderEvent(orderId3, OrderSide.SELL, 0, 10, OrderStatus.NEW),
-                    new OrderEvent(orderId1, OrderSide.BUY, 30, 0, OrderStatus.FULLY_FILLED),
-                    new OrderEvent(orderId3, OrderSide.SELL, 10, 0, OrderStatus.FULLY_FILLED)
+                    new OrderEvent(orderId1, OrderSide.BUY, 30, 0, OrderStatus.FILLED),
+                    new OrderEvent(orderId3, OrderSide.SELL, 10, 0, OrderStatus.FILLED)
             );
             assertThat(tradeEvents).containsExactly(
                     new TradeEvent(orderId2, orderId1, 10, 20),
                     new TradeEvent(orderId3, orderId1, 10, 10)
             );
-            assertThat(restingFilledEvents).containsOnly(orderId1);
+            assertThat(restingRemovedEvents).containsOnly(orderId1);
         }
 
     }
 
     private record TradeEvent(long aggressorOrderId, long restingOrderId, int price, int quantity) {}
-    private record OrderEvent(long orderId, byte side, int executedQty, int remainingQty, byte status) {}
+    private record OrderEvent(long orderId, OrderSide side, int executedQty, int remainingQty, OrderStatus status) {}
 
 }

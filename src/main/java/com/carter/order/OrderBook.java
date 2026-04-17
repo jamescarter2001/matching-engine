@@ -1,10 +1,11 @@
 package com.carter.order;
 
-import com.carter.publisher.OrderBookListener;
+import com.carter.listener.MatchingEngineListener;
 import org.agrona.collections.Long2LongHashMap;
 
+import java.util.function.LongConsumer;
+
 import static com.carter.order.OrderPool.MAX_ORDERS;
-import static com.carter.order.OrderSide.isBuy;
 
 public class OrderBook {
 
@@ -14,7 +15,8 @@ public class OrderBook {
 
     private final OrderPool orderPool;
     private final OrderBookLevel[][] levels;
-    private final OrderBookListener listener;
+    private final MatchingEngineListener listener;
+    private final LongConsumer onOrderRemoved;
 
     private final int minPrice;
     private final int maxPrice;
@@ -31,9 +33,10 @@ public class OrderBook {
     private int bestBid = NULL;
     private int bestAsk = NULL;
 
-    public OrderBook(OrderPool orderPool, OrderBookListener listener, int minPrice, int maxPrice, int tickSize) {
+    public OrderBook(OrderPool orderPool, MatchingEngineListener listener, LongConsumer onOrderRemoved, int minPrice, int maxPrice, int tickSize) {
         this.orderPool = orderPool;
         this.listener = listener;
+        this.onOrderRemoved = onOrderRemoved;
         this.minPrice = minPrice;
         this.maxPrice = maxPrice;
         this.tickSize = tickSize;
@@ -76,7 +79,7 @@ public class OrderBook {
         return (int) idToSlotMap.get(orderId);
     }
 
-    public boolean addOrder(long orderId, int price, int quantity, byte side) {
+    public boolean addOrder(long orderId, int price, int quantity, OrderSide side) {
         if (price < minPrice || price > maxPrice) {
             listener.onOrderUpdate(orderId, side, 0, quantity, OrderStatus.REJECTED);
             return false;
@@ -92,7 +95,7 @@ public class OrderBook {
         int executedQty = quantity - remainder;
 
         if (remainder == 0) {
-            listener.onOrderUpdate(orderId, side, executedQty, remainder, OrderStatus.FULLY_FILLED);
+            listener.onOrderUpdate(orderId, side, executedQty, remainder, OrderStatus.FILLED);
             return false;
         }
 
@@ -108,7 +111,7 @@ public class OrderBook {
         orderPool.setSide(slot, side);
 
         int level = priceToLevel(price);
-        OrderBookLevel levelQueue = isBuy(side) ? getLevelBuy(level) : getLevelSell(level);
+        OrderBookLevel levelQueue = side.isBuy() ? getLevelBuy(level) : getLevelSell(level);
 
         if (levelQueue.getHead() == NULL) {
             levelQueue.setHead(slot);
@@ -122,7 +125,7 @@ public class OrderBook {
 
         levelQueue.setTail(slot);
 
-        if (isBuy(side)) {
+        if (side.isBuy()) {
             bestBid = bestBid != NULL ? Math.max(level, bestBid) : level;
         } else {
             bestAsk = bestAsk != NULL ? Math.min(level, bestAsk) : level;
@@ -133,17 +136,17 @@ public class OrderBook {
     }
 
     public void cancelOrder(long orderId) {
-        removeOrder(orderId, OrderRemoveReason.CANCELLED);
+        removeOrder(orderId, OrderRemovedReason.CANCELLED);
     }
 
-    public void removeOrder(long orderId, byte reason) {
+    public void removeOrder(long orderId, OrderRemovedReason reason) {
         int slot = (int) idToSlotMap.remove(orderId);
 
         if (slot == NULL) {
             return;
         }
 
-        byte side = orderPool.getSide(slot);
+        OrderSide side = orderPool.getSide(slot);
         int quantity = orderPool.getQty(slot);
         int remainingQuantity = orderPool.getRemainingQty(slot);
         int executedQty = quantity - remainingQuantity;
@@ -153,10 +156,10 @@ public class OrderBook {
                 side,
                 executedQty,
                 remainingQuantity,
-                OrderRemoveReason.isFilled(reason) ?
-                        OrderStatus.FULLY_FILLED : OrderStatus.CANCELLED
+                reason.isFilled() ?
+                        OrderStatus.FILLED : OrderStatus.CANCELLED
         );
-        listener.onRestingOrderFilled(orderId);
+        onOrderRemoved.accept(orderId);
 
         removeOrder(slot);
     }
@@ -168,16 +171,16 @@ public class OrderBook {
         if (prev != NULL) orderPool.setNextSlot(prev, next);
         if (next != NULL) orderPool.setPrevSlot(next, prev);
 
-        byte side = orderPool.getSide(slot);
+        OrderSide side = orderPool.getSide(slot);
         int level = priceToLevel(orderPool.getPrice(slot));
-        OrderBookLevel levelQueue = isBuy(side) ? getLevelBuy(level) : getLevelSell(level);
+        OrderBookLevel levelQueue = side.isBuy() ? getLevelBuy(level) : getLevelSell(level);
 
         if (slot == levelQueue.getHead()) levelQueue.setHead(next);
 
         if (slot == levelQueue.getTail()) levelQueue.setTail(prev);
 
         if (levelQueue.isEmpty()) {
-            if (isBuy(side)) {
+            if (side.isBuy()) {
                 bestBid = computeBestBid(level-1);
             } else {
                 bestAsk = computeBestAsk(level+1);
@@ -187,8 +190,8 @@ public class OrderBook {
         orderPool.release(slot);
     }
 
-    private int match(long orderId, int price, int quantity, byte side) {
-        return isBuy(side) ? matchBuyToSell(orderId, price, quantity) : matchSellToBuy(orderId, price, quantity);
+    private int match(long orderId, int price, int quantity, OrderSide side) {
+        return side.isBuy() ? matchBuyToSell(orderId, price, quantity) : matchSellToBuy(orderId, price, quantity);
     }
 
     private int matchBuyToSell(long orderId, int price, int quantity) {
@@ -240,7 +243,7 @@ public class OrderBook {
 
             listener.onTrade(orderId, restingOrderId, restingPrice, matchedQuantity);
             if (matchedQuantity == restingQty) {
-                removeOrder(restingOrderId, OrderRemoveReason.FILLED);
+                removeOrder(restingOrderId, OrderRemovedReason.FILLED);
             } else {
                 listener.onOrderUpdate(
                         restingOrderId,

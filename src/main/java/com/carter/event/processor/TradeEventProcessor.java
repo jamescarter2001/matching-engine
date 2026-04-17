@@ -2,17 +2,18 @@ package com.carter.event.processor;
 
 import com.carter.event.TradeEvent;
 import com.lmax.disruptor.BusySpinWaitStrategy;
-import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import com.lmax.disruptor.util.DaemonThreadFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class TradeEventProcessor {
 
     private final Disruptor<TradeEvent> disruptor;
 
-    public TradeEventProcessor(EventHandler<TradeEvent> handler) {
+    public TradeEventProcessor() {
         this.disruptor = new Disruptor<>(
                 TradeEvent::new,
                 1024,
@@ -20,7 +21,7 @@ public class TradeEventProcessor {
                 ProducerType.SINGLE,
                 new BusySpinWaitStrategy()
         );
-        disruptor.handleEventsWith(handler);
+        disruptor.handleEventsWith(this::onEvent);
     }
 
     public void start() {
@@ -39,6 +40,14 @@ public class TradeEventProcessor {
         } finally {
             ringBuffer.publish(sequence);
         }
+    }
+
+    private void onEvent(TradeEvent event, long sequence, boolean endOfBatch) {
+        log.info("TradeEvent received: aggressorOrderId={}, restingOrderId={}, price={}, quantity={}",
+                event.getAggressorOrderId(),
+                event.getRestingOrderId(),
+                event.getPrice(),
+                event.getQuantity());
     }
 
 }
