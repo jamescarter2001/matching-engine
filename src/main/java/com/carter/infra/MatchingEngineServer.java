@@ -1,8 +1,12 @@
 package com.carter.infra;
 
+import com.carter.processor.OrderMessageProcessor;
+import com.carter.session.SessionContext;
+import com.carter.util.ResourcePool;
 import lombok.extern.slf4j.Slf4j;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
+import uk.co.real_logic.sbe.benchmarks.fix.MessageHeaderDecoder;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -11,19 +15,25 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
 
 @Slf4j
-public class MatchingEngineServer {
+public class MatchingEngineServer implements AutoCloseable {
+
+    private static final int NEW_ORDER_TEMPLATE_ID = 68;
 
     private final Selector selector;
-    private final ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
-    private final DirectBuffer bufferWrapper = new UnsafeBuffer();
+    private final ResourcePool<SessionContext> sessionPool;
+    private final DirectBuffer directBuffer = new UnsafeBuffer();
     private final int port;
+
+    private final OrderMessageProcessor orderMessageProcessor = new OrderMessageProcessor();
+    private final MessageHeaderDecoder headerDecoder = new MessageHeaderDecoder();
 
     public MatchingEngineServer(int port) throws IOException {
         this.port = port;
         this.selector = Selector.open();
+        this.sessionPool = new ResourcePool<>(() -> new SessionContext(ByteBuffer.allocateDirect(1024)), 1024);
+        orderMessageProcessor.start();
     }
 
     public void start() {
@@ -32,31 +42,27 @@ public class MatchingEngineServer {
             serverSocketChannel.bind(new InetSocketAddress(port));
             log.info("Bound to {}", port);
 
-
             serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-
 
             // Start listening for clients
             while (true) {
-                selector.select();
-                final Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-
-                while (iterator.hasNext()) {
-                    final SelectionKey key = iterator.next();
-                    iterator.remove();
-
-                    // Process the client connection
-                    if (key.isAcceptable()) {
-                        accept(key);
-                    }
-                    if (key.isReadable()) {
-                        read(key);
-                    }
-
-                }
+                selector.select(this::processConnection);
             }
         } catch (final IOException ex) {
             throw new RuntimeException(ex);
+        }
+    }
+
+    private void processConnection(SelectionKey key) {
+        try {
+            // Process the client connection
+            if (key.isAcceptable()) {
+                accept(key);
+            } else if (key.isReadable()) {
+                read(key);
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
         }
     }
 
@@ -66,23 +72,56 @@ public class MatchingEngineServer {
             client = serverSocketChannel.accept();
         }
         client.configureBlocking(false);
-        client.register(selector, SelectionKey.OP_READ);
+        client.register(selector, SelectionKey.OP_READ, sessionPool.acquire());
         log.info("Accepted connection from {}", client.getRemoteAddress());
     }
 
     private void read(final SelectionKey key) throws IOException {
         final SocketChannel client = (SocketChannel) key.channel();
-        buffer.clear();
+        final SessionContext ctx = (SessionContext) key.attachment();
+        final ByteBuffer buffer = ctx.buffer();
 
         final int bytesRead = client.read(buffer);
+
+        if (bytesRead == 0) {
+            // nothing to do
+            return;
+        }
+
         if (bytesRead == -1) {
             client.close();
+            buffer.clear();
             key.cancel();
+            sessionPool.release(ctx);
         }
-//        context.setClient(client);
-//        context.setSelectionKey(key);
-//        bufferWrapper.wrap(buffer);
-//        ingressProcessor.dispatch(bufferWrapper, 0, buffer.capacity());
+
+        buffer.flip();
+        directBuffer.wrap(buffer);
+
+        while (buffer.remaining() >= MessageHeaderDecoder.ENCODED_LENGTH) {
+            headerDecoder.wrap(directBuffer, 0);
+
+            int blockLength = headerDecoder.blockLength();
+            int msgLength = headerDecoder.encodedLength() + blockLength;
+
+            if (buffer.remaining() < msgLength) {
+                return;
+            }
+
+            int templateId = headerDecoder.templateId();
+            int version = headerDecoder.version();
+
+            switch (templateId) {
+                case NEW_ORDER_TEMPLATE_ID -> orderMessageProcessor.processNewOrder(directBuffer, MessageHeaderDecoder.ENCODED_LENGTH, blockLength, version);
+                default -> log.warn("Unknown message format: {}", templateId);
+            }
+
+            buffer.position(buffer.position() + msgLength);
+        }
     }
 
+    @Override
+    public void close() throws IOException {
+        selector.close();
+    }
 }
