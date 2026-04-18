@@ -1,6 +1,6 @@
 package com.carter.engine;
 
-import com.carter.listener.NoOpMatchingEngineListener;
+import com.carter.listener.DefaultMatchingEngineListener;
 import com.carter.order.OrderSide;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -22,7 +22,7 @@ public class MatchingEngineBenchmarks {
     @State(Scope.Benchmark)
     public static class BenchmarkState {
 
-        private final MatchingEngine matchingEngine = new MatchingEngine(new NoOpMatchingEngineListener());
+        private MatchingEngine matchingEngine = new MatchingEngine(new DefaultMatchingEngineListener());
 
         @Param({"1000", "2000", "3000"})
         private int price;

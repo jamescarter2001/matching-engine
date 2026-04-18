@@ -16,7 +16,7 @@ public class DefaultMatchingEngineListener implements MatchingEngineListener {
     }
 
     @Override
-    public void onOrderUpdate(long orderId, OrderSide side, int executedQty, int remainingQty, OrderStatus status) {
+    public void onOrderUpdate(long orderId, byte side, int executedQty, int remainingQty, byte status) {
         orderEventProcessor.publish(orderId, side, executedQty, remainingQty, status);
     }
 

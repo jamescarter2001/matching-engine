@@ -2,7 +2,6 @@ package com.carter.engine;
 
 import com.carter.order.OrderBook;
 import com.carter.order.OrderPool;
-import com.carter.order.OrderSide;
 import com.carter.listener.MatchingEngineListener;
 import lombok.extern.slf4j.Slf4j;
 import org.agrona.collections.Long2LongHashMap;
@@ -40,7 +39,7 @@ public class MatchingEngine {
         return books.get(instrumentId).getBestAsk();
     }
 
-    public long addOrder(long instrumentId, int price, int quantity, OrderSide side) {
+    public long addOrder(long instrumentId, int price, int quantity, byte side) {
         long orderId = nextOrderId++;
         OrderBook book = books.get(instrumentId);
         boolean rested = book.addOrder(orderId, price, quantity, side);

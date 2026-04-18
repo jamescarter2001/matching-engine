@@ -43,7 +43,7 @@ public class TradeEventProcessor {
     }
 
     private void onEvent(TradeEvent event, long sequence, boolean endOfBatch) {
-        log.info("TradeEvent received: aggressorOrderId={}, restingOrderId={}, price={}, quantity={}",
+        log.debug("TradeEvent received: aggressorOrderId={}, restingOrderId={}, price={}, quantity={}",
                 event.getAggressorOrderId(),
                 event.getRestingOrderId(),
                 event.getPrice(),

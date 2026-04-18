@@ -10,9 +10,9 @@ import lombok.NoArgsConstructor;
 public class OrderEvent {
 
     private long orderId;
-    private OrderSide side;
+    private byte side;
     private int executedQty;
     private int remainingQty;
-    private OrderStatus status;
+    private byte status;
 
 }

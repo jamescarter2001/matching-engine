@@ -9,7 +9,7 @@ public class OrderPool {
     private int nextFree = 0;
 
     private final long[] orderId;
-    private final OrderSide[] side;
+    private final byte[] side;
     private final int[] price;
     private final int[] qty;
     private final int[] remainingQty;
@@ -23,7 +23,7 @@ public class OrderPool {
     public OrderPool(int poolSize) {
         freeList = new int[poolSize];
         orderId = new long[poolSize];
-        side = new OrderSide[poolSize];
+        side = new byte[poolSize];
         price = new int[poolSize];
         qty = new int[poolSize];
         remainingQty = new int[poolSize];
@@ -55,11 +55,11 @@ public class OrderPool {
         orderId[slot] = value;
     }
 
-    public OrderSide getSide(int slot) {
+    public byte getSide(int slot) {
         return side[slot];
     }
 
-    public void setSide(int slot, OrderSide value) {
+    public void setSide(int slot, byte value) {
         side[slot] = value;
     }
 

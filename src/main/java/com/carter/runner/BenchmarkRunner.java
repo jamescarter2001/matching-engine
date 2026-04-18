@@ -10,6 +10,7 @@ public class BenchmarkRunner {
     public static void main() throws Exception {
         Options opt = new OptionsBuilder()
                 .include(MatchingEngineBenchmarks.class.getSimpleName())
+                .jvmArgsAppend("-Dgflog.config=classpath:gflog-jmh.xml")
                 // .jvmArgsAppend("-Xlog:safepoint*=info")
                 // .jvmArgsAppend("-XX:+UseZGC")
                 // .result("results.json")

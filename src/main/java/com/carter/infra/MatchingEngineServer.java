@@ -1,6 +1,6 @@
 package com.carter.infra;
 
-import com.carter.processor.OrderMessageProcessor;
+import com.carter.processor.OrderProcessor;
 import com.carter.session.SessionContext;
 import com.carter.util.ResourcePool;
 import lombok.extern.slf4j.Slf4j;
@@ -26,14 +26,14 @@ public class MatchingEngineServer implements AutoCloseable {
     private final DirectBuffer directBuffer = new UnsafeBuffer();
     private final int port;
 
-    private final OrderMessageProcessor orderMessageProcessor = new OrderMessageProcessor();
+    private final OrderProcessor orderProcessor = new OrderProcessor();
     private final MessageHeaderDecoder headerDecoder = new MessageHeaderDecoder();
 
     public MatchingEngineServer(int port) throws IOException {
         this.port = port;
         this.selector = Selector.open();
-        this.sessionPool = new ResourcePool<>(() -> new SessionContext(ByteBuffer.allocateDirect(1024)), 1024);
-        orderMessageProcessor.start();
+        this.sessionPool = new ResourcePool<>(() -> new SessionContext(ByteBuffer.allocateDirect(1024)));
+        orderProcessor.start();
     }
 
     public void start() {
@@ -112,7 +112,7 @@ public class MatchingEngineServer implements AutoCloseable {
             int version = headerDecoder.version();
 
             switch (templateId) {
-                case NEW_ORDER_TEMPLATE_ID -> orderMessageProcessor.processNewOrder(directBuffer, MessageHeaderDecoder.ENCODED_LENGTH, blockLength, version);
+                case NEW_ORDER_TEMPLATE_ID -> orderProcessor.processNewOrder(directBuffer, MessageHeaderDecoder.ENCODED_LENGTH, blockLength, version);
                 default -> log.warn("Unknown message format: {}", templateId);
             }
 

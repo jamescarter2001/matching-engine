@@ -1,14 +1,11 @@
 package com.carter.order;
 
-public enum OrderRemovedReason {
-    FILLED,
-    CANCELLED;
+public class OrderRemovedReason {
 
-    public boolean isCancelled() {
-        return this == CANCELLED;
-    }
+    public static final byte FILLED = 1;
+    public static final byte CANCELLED = 2;
 
-    public boolean isFilled() {
-        return this == FILLED;
+    public static boolean isFilled(byte reason) {
+        return reason == FILLED;
     }
 }
